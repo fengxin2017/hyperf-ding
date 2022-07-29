@@ -34,7 +34,7 @@
     },
     "suggest": {
         "swow/swow": "Required to create swow components.",
-        "dleno/common-core": "~2.2.0"
+        "dleno/common-core": "Required to getIp getTraceId."
     },
     "minimum-stability": "dev",
     "prefer-stable": true,
