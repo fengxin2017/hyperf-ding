@@ -2,7 +2,6 @@
 
 namespace Fengxin2017\HyperfDing;
 
-use Carbon\Carbon;
 use Dleno\CommonCore\Tools\Server;
 use Exception;
 use Fengxin2017\HyperfDing\Contracts\CoreContract;
@@ -365,7 +364,7 @@ class Ding implements CoreContract
         $message = $exception->getMessage();
         $file = $exception->getFile();
         $line = $exception->getLine();
-        $time = Carbon::now()->toDateTimeString();
+        $time = date('Y-m-d H:i:s', time());
         $request = ApplicationContext::getContainer()->get(RequestInterface::class);
         $requestUrl = $request->getUri();
         $method = $request->getMethod();
