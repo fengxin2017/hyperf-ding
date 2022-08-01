@@ -8,9 +8,9 @@ return [
         'prod' => [
             // 机器人access_token
             'token' => '',
-            // 机器人秘钥
+            // 机器人secret
             'secret' => '',
-            // 钉钉报错标题
+            // 机器人名称
             'name' => '生产环境',
             // 异常发生时是否开启追踪
             'trace' => true,
