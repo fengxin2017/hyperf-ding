@@ -4,8 +4,6 @@ namespace Fengxin2017\HyperfDing;
 
 use Exception;
 use Hyperf\Utils\Str;
-use ReflectionClass;
-use ReflectionMethod;
 
 /**
  * @method static mixed text($text)
@@ -39,7 +37,7 @@ abstract class Bot
     /**
      * @var array
      */
-    protected static $validMethods = [];
+    protected $validMethods = ['exception', 'markdown', 'text'];
 
     /**
      * Bot constructor.
@@ -52,14 +50,12 @@ abstract class Bot
     /**
      * @param string $method
      * @param array $params
-     *
      * @return mixed
-     * @throws \ReflectionException|\Exception
-     *
+     * @throws Exception
      */
     public function __call(string $method, array $params)
     {
-        if (!in_array($method, $this->validMethods())) {
+        if (!in_array($method, $this->getValidMethods())) {
             throw new Exception('call to undefined method ' . $method);
         }
 
@@ -68,25 +64,14 @@ abstract class Bot
 
     /**
      * @return array
-     * @throws \ReflectionException
-     *
      */
-    protected function validMethods(): array
+    protected function getValidMethods(): array
     {
-        if (!static::$validMethods) {
-            foreach ((new ReflectionClass(Ding::class))->getMethods(ReflectionMethod::IS_PUBLIC) as $method) {
-                $methodName = $method->getName();
-                if (!in_array($methodName, ['__construct', '__call'])) {
-                    static::$validMethods[] = $methodName;
-                }
-            }
-        }
-
-        return static::$validMethods;
+        return $this->validMethods;
     }
 
     /**
-     * @return Ding|mixed
+     * @return mixed
      * @throws Exception
      */
     protected function getTheExactCore()

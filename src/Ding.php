@@ -10,6 +10,7 @@ use GuzzleHttp\Client;
 use Hyperf\Di\Annotation\Inject;
 use Hyperf\HttpServer\Contract\RequestInterface;
 use Hyperf\Redis\Redis;
+use Hyperf\Utils\ApplicationContext;
 use Hyperf\Utils\Coroutine;
 use Hyperf\Utils\Str;
 
@@ -70,36 +71,23 @@ class Ding implements CoreContract
     protected $client;
 
     /**
-     * @var int
-     */
-    protected $timeout = 10;
-
-    /**
      * Ding constructor.
      * @param array|null $params
      * @throws Exception
      */
     public function __construct(array $params = null)
     {
-        $this->apiUrl = config('ding.ding-api-url', 'https://oapi.dingtalk.com/robot/send?access_token=%s&timestamp=%s&sign=%s');
-        $this->client = new Client();
-
         $this->defaultConfig = $this->getDefaultConfig();
+
+        $this->apiUrl = config('ding.request_url', 'https://oapi.dingtalk.com/robot/send?access_token=%s&timestamp=%s&sign=%s');
         $this->token = $params['token'] ?? $this->defaultConfig['token'];
         $this->secret = $params['secret'] ?? $this->defaultConfig['secret'];
         $this->name = $params['name'] ?? $this->defaultConfig['name'];
         $this->trace = $params['trace'] ?? $this->defaultConfig['trace'];
         $this->limit = $params['limit'] ?? $this->defaultConfig['limit'];
         $this->reportFrequency = $params['report_frequency'] ?? $this->defaultConfig['report_frequency'];
-    }
 
-    /**
-     * @return array
-     * @throws Exception
-     */
-    protected function getDefaultConfig(): array
-    {
-        return config('ding.bots.' . $this->getDefaultBotName());
+        $this->client = new Client();
     }
 
     /**
@@ -115,6 +103,34 @@ class Ding implements CoreContract
         }
 
         return $defultBotName;
+    }
+
+    /**
+     * @return array
+     * @throws Exception
+     */
+    protected function getDefaultConfig(): array
+    {
+        return tap(config('ding.bots.' . $this->getDefaultBotName()), function ($config) {
+            $this->checkConfig($config, ['token', 'secret', 'name', 'trace', 'limit', 'report_frequency']);
+        });
+    }
+
+    /**
+     * @param array $config
+     * @param array $fields
+     * @return bool
+     * @throws Exception
+     */
+    protected function checkConfig(array $config, array $fields)
+    {
+        foreach ($fields as $field) {
+            if (!isset($config[$field])) {
+                throw new Exception(sprintf('默认配置缺少参数【%s】', $field));
+            }
+        }
+
+        return true;
     }
 
     /**
@@ -333,15 +349,9 @@ class Ding implements CoreContract
             return true;
         }
 
-        $key = 'ding_exception_key:' . md5($this->name . $exception->getMessage());
+        $exceptionkey = env('APP_NAME', 'ding') . ':ding_exception_key:' . md5($this->name . $exception->getMessage());
 
-        if ($this->redis->get($key)) {
-            return false;
-        }
-
-        $this->redis->set($key, true, $this->reportFrequency);
-
-        return true;
+        return $this->redis->set($exceptionkey, true, ['NX', 'EX' => $this->reportFrequency]);
     }
 
     /**
@@ -356,7 +366,7 @@ class Ding implements CoreContract
         $file = $exception->getFile();
         $line = $exception->getLine();
         $time = Carbon::now()->toDateTimeString();
-        $request = get_inject_obj(RequestInterface::class);
+        $request = ApplicationContext::getContainer()->get(RequestInterface::class);
         $requestUrl = $request->getUri();
         $method = $request->getMethod();
         if (class_exists(\Dleno\CommonCore\Tools\Client::class)) {
@@ -424,17 +434,18 @@ class Ding implements CoreContract
      */
     public function __call(string $botName, array $parameters)
     {
-        if ($config = config('ding.bots.' . Str::snake($botName))) {
-            $this->token = $config['token'] ?? $this->token;
-            $this->secret = $config['secret'] ?? $this->secret;
-            $this->name = $config['name'] ?? $this->name;
-            $this->trace = $config['trace'] ?? $this->trace;
-            $this->limit = $config['limit'] ?? $this->limit;
-            $this->reportFrequency = $config['report_frequency'] ?? $this->reportFrequency;
+        $config = config('ding.bots.' . Str::snake($botName));
 
-            return $this;
+        if (is_null($config)) {
+            throw new Exception(sprintf('Bot 【%s】 not exists.', $botName));
         }
 
-        throw new Exception('call to undefined function ' . $botName);
+        isset($config['token']) && $this->setToken($config['token']);
+        isset($config['secret']) && $this->setSecret($config['secret']);
+        isset($config['name']) && $this->setName($config['name']);
+        isset($config['trace']) && $this->setTrace($config['trace']);
+        isset($config['limit']) && $this->setLimit($config['limit']);
+        isset($config['report_frequency']) && $this->setReportFrequency($config['report_frequency']);
+        return $this;
     }
 }
