@@ -283,6 +283,21 @@ class Ding implements CoreContract
     public function sendDingTalkRobotMessage(array $msg)
     {
         Coroutine::create(function () use ($msg) {
+            // 钉钉限制每个机器人每分钟最多推送频率20条记录
+            $requestCountPerminKey = env('APP_NAME', 'ding') . ':' . $this->name . ':request_count_permin';
+            $requestCountPermin = $this->redis->get($requestCountPerminKey);
+
+            // 每分钟限制为18条推送
+            if (false == $requestCountPermin) {
+                $this->redis->incr($requestCountPerminKey);
+                $this->redis->expire($requestCountPerminKey, 60);
+            } elseif ($requestCountPermin > 18) {
+                var_dump('requests are too frequent');
+                return;
+            } else {
+                $this->redis->incr($requestCountPerminKey);
+            }
+
             $timestamp = (string)(time() * 1000);
             $secret = $this->getSecret();
             $token = $this->getToken();
