@@ -392,6 +392,16 @@ class Ding implements CoreContract
         /** @noinspection JsonEncodingApiUsageInspection */
         $params = json_encode($request->all());
         $headers = json_encode($request->getHeaders());
+        foreach ($headers as $key => $val) {
+            unset($headers[$key]);
+            $key = strtolower($key);
+            if (strpos($key, 'client-') !== false) {
+                $headers[$key] = is_array($val) ? join('; ', $val) : $val;
+            }
+        }
+        //去除不需要的key
+        unset($headers['client-key'], $headers['client-timestamp'], $headers['client-nonce'], $headers['client-sign'], $headers['client-accesskey']);
+
         $hostName = gethostname();
         $env = config('app_env');
 
