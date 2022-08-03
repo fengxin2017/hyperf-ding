@@ -391,6 +391,7 @@ class Ding implements CoreContract
 
         /** @noinspection JsonEncodingApiUsageInspection */
         $params = json_encode($request->all());
+        $headers = json_encode($request->getHeaders());
         $hostName = gethostname();
         $env = config('app_env');
 
@@ -414,6 +415,7 @@ class Ding implements CoreContract
             ['环境', $env],
             ['类名', $class],
             ['请求IP', $ip],
+            ['请求头', $headers],
             ['请求参数', $params],
             ['时间', $time],
             ['请求方式', $method],
