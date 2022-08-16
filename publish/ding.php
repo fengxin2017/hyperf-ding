@@ -14,9 +14,7 @@ return [
             'name' => '生产环境',
             // 异常发生时是否开启追踪
             'trace' => true,
-            // 异常发生时是否限制上报频率
-            'limit' => true,
-            // 异常发生时开启limit后，每多少秒上报一次，limit为false不影响。
+            // 异常发生时播报频率
             'report_frequency' => 60,
         ],
 
@@ -25,7 +23,6 @@ return [
             'secret' => '',
             'name' => '开发环境',
             'trace' => false,
-            'limit' => true,
             'report_frequency' => 20,
         ],
 
@@ -34,7 +31,6 @@ return [
             'secret' => '',
             'name' => '本地环境',
             'trace' => false,
-            'limit' => true,
             'report_frequency' => 20,
         ]
     ]

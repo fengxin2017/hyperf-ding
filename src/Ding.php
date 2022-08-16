@@ -45,11 +45,6 @@ class Ding implements CoreContract
     protected $trace;
 
     /**
-     * @var bool
-     */
-    protected $limit;
-
-    /**
      * @var int
      */
     protected $reportFrequency;
@@ -83,7 +78,6 @@ class Ding implements CoreContract
         $this->secret = $params['secret'] ?? $this->defaultConfig['secret'];
         $this->name = $params['name'] ?? $this->defaultConfig['name'];
         $this->trace = $params['trace'] ?? $this->defaultConfig['trace'];
-        $this->limit = $params['limit'] ?? $this->defaultConfig['limit'];
         $this->reportFrequency = $params['report_frequency'] ?? $this->defaultConfig['report_frequency'];
 
         $this->client = new Client();
@@ -111,7 +105,7 @@ class Ding implements CoreContract
     protected function getDefaultConfig(): array
     {
         return tap(config('ding.bots.' . $this->getDefaultBotName()), function ($config) {
-            $this->checkConfig($config, ['token', 'secret', 'name', 'trace', 'limit', 'report_frequency']);
+            $this->checkConfig($config, ['token', 'secret', 'name', 'trace', 'report_frequency']);
         });
     }
 
@@ -210,26 +204,6 @@ class Ding implements CoreContract
         $this->trace = $trace;
 
         return $this;
-    }
-
-    /**
-     * @param bool $limit
-     *
-     * @return $this
-     */
-    public function setLimit(bool $limit): self
-    {
-        $this->limit = $limit;
-
-        return $this;
-    }
-
-    /**
-     * @return bool
-     */
-    public function getLimit(): bool
-    {
-        return $this->limit;
     }
 
     /**
@@ -333,13 +307,33 @@ class Ding implements CoreContract
     }
 
     /**
+     * @param string $notice
+     * @return mixed|void
+     * @throws \Throwable
+     */
+    public function notice(string $notice)
+    {
+        if (!$this->shouldReportNotice($notice)) {
+            return;
+        }
+
+        return $this->sendDingTalkRobotMessage([
+            'msgtype' => 'markdown',
+            'markdown' => [
+                'title' => '通知消息',
+                'text' => $this->formatNotice($notice),
+            ],
+        ]);
+    }
+
+    /**
      * @param Exception $exception
      * @return mixed|void
      * @throws \Throwable
      */
     public function exception(Exception $exception)
     {
-        if (!$this->shouldReport($exception)) {
+        if (!$this->shouldReportException($exception)) {
             return;
         }
 
@@ -347,7 +341,7 @@ class Ding implements CoreContract
             'msgtype' => 'markdown',
             'markdown' => [
                 'title' => '异常消息',
-                'text' => $this->formatToMarkdown($exception),
+                'text' => $this->formatException($exception),
             ],
         ]);
     }
@@ -357,15 +351,80 @@ class Ding implements CoreContract
      *
      * @return bool
      */
-    protected function shouldReport(Exception $exception): bool
+    protected function shouldReportException(Exception $exception): bool
     {
-        if (false == $this->limit) {
-            return true;
-        }
-
         $exceptionkey = env('APP_NAME', 'ding') . ':ding_exception_key:' . md5($this->name . $exception->getMessage());
 
         return $this->redis->set($exceptionkey, true, ['NX', 'EX' => $this->reportFrequency]);
+    }
+
+    /**
+     * @param string $notice
+     *
+     * @return bool
+     */
+    protected function shouldReportNotice(string $notice): bool
+    {
+        $noticeKey = env('APP_NAME', 'ding') . ':ding_notice_key:' . md5($this->name . $notice);
+
+        return $this->redis->set($noticeKey, true, ['NX', 'EX' => $this->reportFrequency]);
+    }
+
+    /**
+     * @param string $notice
+     * @return string
+     */
+    protected function formatNotice(string $notice)
+    {
+        $time = date('Y-m-d H:i:s', time());
+        $request = ApplicationContext::getContainer()->get(RequestInterface::class);
+        $requestUrl = $request->getUri();
+        $method = $request->getMethod();
+        if (class_exists(\Dleno\CommonCore\Tools\Client::class)) {
+            $ip = \Dleno\CommonCore\Tools\Client::getIP();
+        } else {
+            $ip = null;
+        }
+
+        /** @noinspection JsonEncodingApiUsageInspection */
+        $params = json_encode($request->all());
+
+        $headers = $request->getHeaders();
+        foreach ($headers as $key => $val) {
+            unset($headers[$key]);
+            $key = strtolower($key);
+            if (strpos($key, 'client-') !== false) {
+                $headers[$key] = is_array($val) ? join('; ', $val) : $val;
+            }
+        }
+        //去除不需要的key
+        unset($headers['client-key'], $headers['client-timestamp'], $headers['client-nonce'], $headers['client-sign'], $headers['client-accesskey']);
+
+        $headers = json_encode($headers);
+
+        $hostName = gethostname();
+        $env = config('app_env');
+
+        if (class_exists(Server::class)) {
+            $traceId = Server::getTraceId();
+        } else {
+            $traceId = null;
+        }
+
+        return $this->formatMessage([
+            ['描述', $this->name . '-' . '通知消息~'],
+            ['消息内容', $notice],
+            ['追踪ID', $traceId],
+            ['主机名称', $hostName],
+            ['环境', $env],
+            ['请求IP', $ip],
+            ['请求头', $headers],
+            ['请求参数', $params],
+            ['时间', $time],
+            ['请求方式', $method],
+            ['请求地址', $requestUrl],
+            ['当前播报限制', '(每' . $this->reportFrequency . 's 一次)'],
+        ]);
     }
 
     /**
@@ -373,7 +432,7 @@ class Ding implements CoreContract
      *
      * @return array|string
      */
-    protected function formatToMarkdown(Exception $exception)
+    protected function formatException(Exception $exception)
     {
         $class = get_class($exception);
         $message = $exception->getMessage();
@@ -417,10 +476,6 @@ class Ding implements CoreContract
         $explode = explode("\n", $exception->getTraceAsString());
         array_unshift($explode, '');
 
-        $limit = $this->getLimit() && $this->reportFrequency;
-
-        $reportFrequency = $this->limit ? $this->reportFrequency : null;
-
         $messageBody = [
             ['描述', $this->name . '-' . '出现异常~'],
             ['追踪ID', $traceId],
@@ -434,7 +489,7 @@ class Ding implements CoreContract
             ['请求方式', $method],
             ['请求地址', $requestUrl],
             ['异常描述', $message],
-            ['当前播报限制', $limit ? '开启(每' . $reportFrequency . 's 一次)' : '关闭'],
+            ['当前播报限制', '(每' . $this->reportFrequency . 's 一次)'],
             ['参考位置', sprintf('%s:%d', str_replace([BASE_PATH, '\\'], ['', '/'], $file), $line)],
         ];
 
@@ -445,14 +500,22 @@ class Ding implements CoreContract
             ];
         }
 
+        return $this->formatMessage($messageBody);
+    }
+
+    /**
+     * @param array $messageBody
+     * @return string
+     */
+    protected function formatMessage(array $messageBody)
+    {
         $messageBody = array_map(function ($item) {
             [$key, $val] = $item;
 
             return sprintf('- %s: %s> %s', $key, PHP_EOL, $val);
         }, $messageBody);
-        $messageBody = implode(PHP_EOL, $messageBody);
 
-        return $messageBody;
+        return implode(PHP_EOL, $messageBody);
     }
 
     /**
@@ -473,7 +536,6 @@ class Ding implements CoreContract
         isset($config['secret']) && $this->setSecret($config['secret']);
         isset($config['name']) && $this->setName($config['name']);
         isset($config['trace']) && $this->setTrace($config['trace']);
-        isset($config['limit']) && $this->setLimit($config['limit']);
         isset($config['report_frequency']) && $this->setReportFrequency($config['report_frequency']);
         return $this;
     }

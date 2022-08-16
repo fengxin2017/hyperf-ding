@@ -58,18 +58,6 @@ interface CoreContract
     public function getTrace(): bool;
 
     /**
-     * @param bool $limit
-     *
-     * @return mixed
-     */
-    public function setLimit(bool $limit);
-
-    /**
-     * @return bool
-     */
-    public function getLimit(): bool;
-
-    /**
      * @param int $reportFrequency
      *
      * @return mixed
@@ -94,6 +82,13 @@ interface CoreContract
      * @return mixed
      */
     public function markdown(string $markdown);
+
+    /**
+     * @param string $notice
+     *
+     * @return mixed
+     */
+    public function notice(string $notice);
 
     /**
      * @param \Exception $exception

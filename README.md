@@ -37,7 +37,6 @@ $ding = new Ding([
 // 覆盖配置默认配置
 $ding->setTitle('改个标题')
     ->setTrace(true)   // 开启追踪
-    ->setLimit(true)   // 开启上报间隔时间
     ->setReportFrequency(20)  // 上报时间间隔
     ->setDescription('改个描述') // 自定义描述
     ->exception(new Exception('出问题')); 
@@ -64,7 +63,6 @@ ding()->exception(new Exception('出问题啦'));
 // 覆盖配置,没设置到的地方会使用对应机器人默认配置
 ding()->setTitle('改个标题')
     ->setTrace(true)   // 开启追踪
-    ->setLimit(true)   // 开启上报间隔时间
     ->setReportFrequency(20)  // 上报时间间隔
     ->setDescription('改个描述') // 自定义描述
     ->exception(new Exception('出问题')); 
