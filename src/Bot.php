@@ -7,24 +7,10 @@ use Hyperf\Utils\Str;
 
 /**
  * @method static mixed text($text)
+ * @method static mixed notice($notice)
  * @method static mixed markdown($markdown)
  * @method static mixed exception($exception)
- * @method static Ding setToken(string $token)
- * @method static string getToken()
- * @method static Ding setSecret(string $secret)
- * @method static string getSecret()
- * @method static Ding setTitle(string $title)
- * @method static string getTitle()
- * @method static Ding setDescription(string $description)
- * @method static string getDescription()
- * @method static Ding setTrace(bool $trace)
- * @method static string getTrace()
- * @method static Ding setLimit(bool $limit)
- * @method static string getLimit()
- * @method static Ding setReportFrequency(int $reportFrequency)
- * @method static string getReportFrequency()
  *
- * @see Ding
  * Class Bot
  */
 abstract class Bot
@@ -37,7 +23,7 @@ abstract class Bot
     /**
      * @var array
      */
-    protected $validMethods = ['exception', 'markdown', 'text'];
+    protected $validMethods = ['exception', 'markdown', 'text', 'notice'];
 
     /**
      * Bot constructor.

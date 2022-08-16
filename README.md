@@ -69,6 +69,7 @@ ding()->setTitle('改个标题')
 
 // 调用其他机器人
 ding('dev')->markdown('> 我是开发机器人');
+ding('dev')->notice('这是一个通知消息已MARKDOWN形式展示');
 ding()->prod()->text('我是生产机器人');
 
 // 自定义配置调用
@@ -119,6 +120,7 @@ use App\Ding\Bots\Dev;
 
 Prod::markdown('### 这是标题');
 Dev::text('API 线上调试时很有用哦');
+Dev::notice('这是一个通知消息');
 Prod::exception(new Exception('出错啦'));
 
 ```
