@@ -19,26 +19,25 @@ use Fengxin2017\HyperfDing\Ding;
 $ding = new Ding([
                     'token' => 'xxxx',
                     'secret' => 'xxxxx',
-                    'title' => '小白鼠'
+                    'name' => 'foo'
                     // ....
                 ]);
 
-$ding->text('API 线上调试时很有用哦');
+$ding->text('API');
 $ding->markdown('### 标题');
 $ding->exception(new Exception('出问题啦'));
 
 $ding = new Ding([
                     'token' => 'xxxx',
                     'secret' => 'xxxxx',
-                    'title' => '小白鼠'
+                    'name' => 'bar'
                     // ....
                 ]);
 
 // 覆盖配置默认配置
-$ding->setTitle('改个标题')
-    ->setTrace(true)   // 开启追踪
-    ->setReportFrequency(20)  // 上报时间间隔
-    ->setDescription('改个描述') // 自定义描述
+$ding->setName('baz')
+    ->setTrace(true)   // 开启异常堆栈追踪
+    ->setReportFrequency(20)  // 异常上报时间间隔
     ->exception(new Exception('出问题')); 
 
 
@@ -61,47 +60,80 @@ ding()->markdown('### 标题');
 ding()->exception(new Exception('出问题啦'));
 
 // 覆盖配置,没设置到的地方会使用对应机器人默认配置
-ding()->setTitle('改个标题')
-    ->setTrace(true)   // 开启追踪
-    ->setReportFrequency(20)  // 上报时间间隔
-    ->setDescription('改个描述') // 自定义描述
+ding()->setName('prod')
+    ->setTrace(true)   // 开启异常堆栈追踪
+    ->setReportFrequency(20)  // 异常上报时间间隔
     ->exception(new Exception('出问题')); 
 
 // 调用其他机器人
 ding('dev')->markdown('> 我是开发机器人');
-ding('dev')->notice('这是一个通知消息已MARKDOWN形式展示');
+ding('dev')->notice('这是一个通知消息以MARKDOWN形式展示，且自带请求相关信息');
 ding()->prod()->text('我是生产机器人');
 
 // 自定义配置调用
 ding([
     'token' => 'xxxx',
     'secret' => 'xxxxx',
-    'title' => '小白鼠'
+    'name' => 'eth'
     // ....
-])->text('ABC');
+])->text('uniswap');
 
 ding([
     'token' => 'xxxx',
     'secret' => 'xxxxx',
-    'title' => '小白鼠'
+    'title' => 'eth'
     // ....
-])->exception(new Exception('异常'));
+])->exception(new Exception('eip1559'));
 
-ding()->setToken()->setSecret()->setTitle('标题')->text('招呼咯');
-ding()->setToken()->setSecret()->exception(new Exception('异常'));
+ding()->setToken()->setSecret()->setName('xxx')->text('文本');
+ding()->setToken()->setSecret()->exception(new Exception('异常拉'));
 
 ```
 
-### DINGDING自定义机器人调用
+### DINGDING自定义机器人调用（推荐）
 
-### NOTICE 
 > 机器人调用为单例模式，不支持动态修改配置。
 
 > 类名为配置中机器人驼峰首字母大写。
 
 ```
-// 
+// 配置文件
+<?php
 
+return [
+    // 默认机器人
+    'default' => 'dev',
+
+    // 配置
+    'bots' => [
+        // 生产环境
+        'prod' => [
+            'token' => '',
+            'secret' => '',
+            // 钉钉报错标题
+            'name' => '生产环境',
+            // 异常发生时是否开启追踪
+            'trace' => true,
+            // 相同异常发生时每多少秒上报一次。
+            'report_frequency' => 10,
+        ],
+        // 开发环境
+        'dev' => [
+            'token' => '',
+            'secret' => '',
+            // 钉钉报错标题
+            'name' => '开发环境',
+            // 异常发生时是否开启追踪
+            'trace' => true,
+            // 异常发生时是否限制上报频率
+            'limit' => true,
+            // 相同异常发生时每多少秒上报一次。
+            'report_frequency' => 10,
+        ],
+    ]
+];
+
+// 创建一个生产环境机器人、创建一个开发环境机器人
 <?php
 namespace App\Ding\Bots;
 use Fengxin2017\HyperfDing\Bot;
@@ -114,6 +146,7 @@ class Dev extends Bot
 {
 }
 
+// 调用方式
 <? php
 use App\Ding\Bots\Prod;
 use App\Ding\Bots\Dev;
@@ -121,6 +154,7 @@ use App\Ding\Bots\Dev;
 Prod::markdown('### 这是标题');
 Dev::text('API 线上调试时很有用哦');
 Dev::notice('这是一个通知消息');
+// 在ExceptionHandler里加入机器人捕获异常并上报钉钉对线上调试非常管用
 Prod::exception(new Exception('出错啦'));
 
 ```
