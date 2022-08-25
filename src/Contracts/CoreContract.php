@@ -91,9 +91,9 @@ interface CoreContract
     public function notice(string $notice);
 
     /**
-     * @param \Exception $exception
+     * @param \Throwable $throwable
      *
      * @return mixed
      */
-    public function exception(Exception $exception);
+    public function exception(\Throwable $throwable);
 }

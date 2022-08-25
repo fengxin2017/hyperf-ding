@@ -5,12 +5,13 @@ return [
     'default' => 'local',
 
     'bots' => [
+        // 生产环境
         'prod' => [
             // 机器人access_token
             'token' => '',
             // 机器人secret
             'secret' => '',
-            // 机器人名称
+            // 机器人名称，每个机器人名称不要一致
             'name' => '生产环境',
             // 异常发生时是否开启追踪
             'trace' => true,
@@ -18,6 +19,7 @@ return [
             'report_frequency' => 60,
         ],
 
+        // 开发环境
         'dev' => [
             'token' => '',
             'secret' => '',
@@ -26,6 +28,7 @@ return [
             'report_frequency' => 20,
         ],
 
+        // 本地环境
         'local' => [
             'token' => '',
             'secret' => '',

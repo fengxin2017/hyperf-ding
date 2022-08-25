@@ -313,61 +313,32 @@ class Ding implements CoreContract
      */
     public function notice(string $notice)
     {
-        if (!$this->shouldReportNotice($notice)) {
-            return;
-        }
-
-        return $this->sendDingTalkRobotMessage([
-            'msgtype' => 'markdown',
-            'markdown' => [
-                'title' => '通知消息',
-                'text' => $this->formatNotice($notice),
-            ],
-        ]);
+        return $this->ding('通知消息', 'markdown', $this->formatNotice($notice));
     }
 
     /**
-     * @param Exception $exception
+     * @param \Throwable $exception
      * @return mixed|void
      * @throws \Throwable
      */
-    public function exception(Exception $exception)
+    public function exception(\Throwable $exception)
     {
         if (!$this->shouldReportException($exception)) {
             return;
         }
 
-        return $this->sendDingTalkRobotMessage([
-            'msgtype' => 'markdown',
-            'markdown' => [
-                'title' => '异常消息',
-                'text' => $this->formatException($exception),
-            ],
-        ]);
+        return $this->ding('异常消息', 'markdown', $this->formatException($exception));
     }
 
     /**
-     * @param \Exception $exception
-     *
+     * @param \Throwable $exception
      * @return bool
      */
-    protected function shouldReportException(Exception $exception): bool
+    protected function shouldReportException(\Throwable $exception): bool
     {
         $exceptionkey = env('APP_NAME', 'ding') . ':ding_exception_key:' . md5($this->name . $exception->getMessage());
 
         return $this->redis->set($exceptionkey, true, ['NX', 'EX' => $this->reportFrequency]);
-    }
-
-    /**
-     * @param string $notice
-     *
-     * @return bool
-     */
-    protected function shouldReportNotice(string $notice): bool
-    {
-        $noticeKey = env('APP_NAME', 'ding') . ':ding_notice_key:' . md5($this->name . $notice);
-
-        return $this->redis->set($noticeKey, true, ['NX', 'EX' => $this->reportFrequency]);
     }
 
     /**
@@ -428,11 +399,10 @@ class Ding implements CoreContract
     }
 
     /**
-     * @param $exception
-     *
-     * @return array|string
+     * @param \Throwable $exception
+     * @return string
      */
-    protected function formatException(Exception $exception)
+    protected function formatException(\Throwable $exception)
     {
         $class = get_class($exception);
         $message = $exception->getMessage();
