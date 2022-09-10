@@ -12,6 +12,9 @@ use Hyperf\Redis\Redis;
 use Hyperf\Utils\ApplicationContext;
 use Hyperf\Utils\Coroutine;
 use Hyperf\Utils\Str;
+use Hyperf\Context\Context;
+use Hyperf\WebSocketServer\Context as WsContext;
+use Psr\Http\Message\ServerRequestInterface;
 
 /**
  * Class Ding
@@ -256,34 +259,46 @@ class Ding implements CoreContract
      */
     public function sendDingTalkRobotMessage(array $msg)
     {
-        Coroutine::create(function () use ($msg) {
-            // 钉钉限制每个机器人每分钟最多推送频率20条记录
-            $requestCountPerminKey = env('APP_NAME', 'ding') . ':' . $this->name . ':request_count_permin';
-            $requestCountPermin = $this->redis->get($requestCountPerminKey);
-
-            // 每分钟限制为18条推送
-            if (false == $requestCountPermin) {
-                $this->redis->incr($requestCountPerminKey);
-                $this->redis->expire($requestCountPerminKey, 60);
-            } elseif ($requestCountPermin > 18) {
-                var_dump('requests are too frequent');
-                return;
-            } else {
-                $this->redis->incr($requestCountPerminKey);
-            }
-
-            $timestamp = (string)(time() * 1000);
-            $secret = $this->getSecret();
-            $token = $this->getToken();
-            $sign = urlencode(base64_encode(hash_hmac('sha256', $timestamp . "\n" . $secret, $secret, true)));
-            $response = $this->client->post(sprintf($this->apiUrl, $token, $timestamp, $sign), ['json' => $msg]);
-            $result = json_decode($response->getBody(), true);
-            if (!isset($result['errcode']) || $result['errcode']) {
-                var_dump('send robot message fail');
-            }
-        });
+        if (Coroutine::inCoroutine()) {
+            Coroutine::create(function () use ($msg) {
+                $this->_sendDingTalkRobotMessage($msg);
+            });
+        } else {
+            $this->_sendDingTalkRobotMessage($msg);
+        }
 
         return true;
+    }
+
+    /**
+     * @param array $msg
+     */
+    protected function _sendDingTalkRobotMessage(array $msg)
+    {
+        // 钉钉限制每个机器人每分钟最多推送频率20条记录
+        $requestCountPerminKey = env('APP_NAME', 'ding') . ':' . $this->name . ':request_count_permin';
+        $requestCountPermin = $this->redis->get($requestCountPerminKey);
+
+        // 每分钟限制为18条推送
+        if (false == $requestCountPermin) {
+            $this->redis->incr($requestCountPerminKey);
+            $this->redis->expire($requestCountPerminKey, 60);
+        } elseif ($requestCountPermin > 18) {
+            var_dump('requests are too frequent');
+            return;
+        } else {
+            $this->redis->incr($requestCountPerminKey);
+        }
+
+        $timestamp = (string)(time() * 1000);
+        $secret = $this->getSecret();
+        $token = $this->getToken();
+        $sign = urlencode(base64_encode(hash_hmac('sha256', $timestamp . "\n" . $secret, $secret, true)));
+        $response = $this->client->post(sprintf($this->apiUrl, $token, $timestamp, $sign), ['json' => $msg]);
+        $result = json_decode($response->getBody(), true);
+        if (!isset($result['errcode']) || $result['errcode']) {
+            var_dump('message send fail');
+        }
     }
 
     /**
@@ -348,30 +363,49 @@ class Ding implements CoreContract
     protected function formatNotice(string $notice)
     {
         $time = date('Y-m-d H:i:s', time());
-        $request = ApplicationContext::getContainer()->get(RequestInterface::class);
-        $requestUrl = $request->getUri();
-        $method = $request->getMethod();
+
         if (class_exists(\Dleno\CommonCore\Tools\Client::class)) {
             $ip = \Dleno\CommonCore\Tools\Client::getIP();
         } else {
-            $ip = null;
+            $ip = '';
         }
 
-        /** @noinspection JsonEncodingApiUsageInspection */
-        $params = json_encode($request->all());
+        // 兼容本地进程执行的情况
+        if (Context::has(ServerRequestInterface::class)) {
+            $request = ApplicationContext::getContainer()
+                ->get(RequestInterface::class);
+        } elseif (class_exists(WsContext::class) && WsContext::has(ServerRequestInterface::class)) {
+            $request = WsContext::get(ServerRequestInterface::class);
+        } else {
+            $request = null;
+        }
 
-        $headers = $request->getHeaders();
-        foreach ($headers as $key => $val) {
-            unset($headers[$key]);
-            $key = strtolower($key);
-            if (strpos($key, 'client-') !== false) {
-                $headers[$key] = is_array($val) ? join('; ', $val) : $val;
+        if (is_null($request)) {
+            $requestUrl = 'local';
+            $method = 'local';
+            $params = 'local';
+            $headers = 'local';
+        } else {
+            $requestUrl = $request->getUri();
+            $method = $request->getMethod();
+            /** @noinspection JsonEncodingApiUsageInspection */
+            $params = json_encode($request->all());
+            $headers = $request->getHeaders();
+            foreach ($headers as $key => $val) {
+                $key = strtolower($key);
+                $headerPrefix = config('ding.header_prefix');
+                if ($headerPrefix && strpos($key, $headerPrefix) !== false) {
+                    $headers[$key] = is_array($val) ? join('; ', $val) : $val;
+                }
             }
-        }
-        //去除不需要的key
-        unset($headers['client-key'], $headers['client-timestamp'], $headers['client-nonce'], $headers['client-sign'], $headers['client-accesskey']);
+            //去除不需要的key
+            foreach (config('ding.ignore_headers', []) as $key) {
+                $key = strtolower($key);
+                unset($headers[$key]);
+            }
 
-        $headers = json_encode($headers);
+            $headers = json_encode($headers);
+        }
 
         $hostName = gethostname();
         $env = config('app_env');
@@ -409,30 +443,49 @@ class Ding implements CoreContract
         $file = $exception->getFile();
         $line = $exception->getLine();
         $time = date('Y-m-d H:i:s', time());
-        $request = ApplicationContext::getContainer()->get(RequestInterface::class);
-        $requestUrl = $request->getUri();
-        $method = $request->getMethod();
+
         if (class_exists(\Dleno\CommonCore\Tools\Client::class)) {
             $ip = \Dleno\CommonCore\Tools\Client::getIP();
         } else {
             $ip = null;
         }
 
-        /** @noinspection JsonEncodingApiUsageInspection */
-        $params = json_encode($request->all());
-
-        $headers = $request->getHeaders();
-        foreach ($headers as $key => $val) {
-            unset($headers[$key]);
-            $key = strtolower($key);
-            if (strpos($key, 'client-') !== false) {
-                $headers[$key] = is_array($val) ? join('; ', $val) : $val;
-            }
+        //兼容 HTTP/WS/LOCAL
+        if (Context::has(ServerRequestInterface::class)) {
+            $request = ApplicationContext::getContainer()
+                ->get(RequestInterface::class);
+        } elseif (class_exists(WsContext::class) && WsContext::has(ServerRequestInterface::class)) {
+            $request = WsContext::get(ServerRequestInterface::class);
+        } else {
+            $request = null;
         }
-        //去除不需要的key
-        unset($headers['client-key'], $headers['client-timestamp'], $headers['client-nonce'], $headers['client-sign'], $headers['client-accesskey']);
 
-        $headers = json_encode($headers);
+        if (is_null($request)) {
+            $requestUrl = 'local';
+            $method = 'local';
+            $params = 'local';
+            $headers = 'local';
+        } else {
+            $requestUrl = $request->getUri();
+            $method = $request->getMethod();
+            /** @noinspection JsonEncodingApiUsageInspection */
+            $params = json_encode($request->all());
+            $headers = $request->getHeaders();
+            foreach ($headers as $key => $val) {
+                $key = strtolower($key);
+                $headerPrefix = config('ding.header_prefix');
+                if ($headerPrefix && strpos($key, $headerPrefix) !== false) {
+                    $headers[$key] = is_array($val) ? join('; ', $val) : $val;
+                }
+            }
+            //去除不需要的key
+            foreach (config('ding.ignore_headers', []) as $key) {
+                $key = strtolower($key);
+                unset($headers[$key]);
+            }
+
+            $headers = json_encode($headers);
+        }
 
         $hostName = gethostname();
         $env = config('app_env');

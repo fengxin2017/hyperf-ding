@@ -4,6 +4,13 @@ return [
     // 默认机器人
     'default' => 'local',
 
+    // 忽略的头信息
+    'ignore_header' => [
+        'client-key', 'client-timestamp', 'client-nonce', 'client-sign', 'client-accesskey'
+    ],
+    // 头信息前缀
+    'header_prefix' => '',
+
     'bots' => [
         // 生产环境
         'prod' => [
