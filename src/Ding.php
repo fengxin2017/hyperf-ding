@@ -392,6 +392,7 @@ class Ding implements CoreContract
             $params = json_encode($request->all());
             $headers = $request->getHeaders();
             foreach ($headers as $key => $val) {
+                unset($headers[$key]);
                 $key = strtolower($key);
                 $headerPrefix = config('ding.header_prefix');
                 if ($headerPrefix && strpos($key, $headerPrefix) !== false) {
