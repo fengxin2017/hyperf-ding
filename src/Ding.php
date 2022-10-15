@@ -6,13 +6,13 @@ use Dleno\CommonCore\Tools\Server;
 use Exception;
 use Fengxin2017\HyperfDing\Contracts\CoreContract;
 use GuzzleHttp\Client;
+use Hyperf\Context\Context;
 use Hyperf\Di\Annotation\Inject;
 use Hyperf\HttpServer\Contract\RequestInterface;
 use Hyperf\Redis\Redis;
 use Hyperf\Utils\ApplicationContext;
 use Hyperf\Utils\Coroutine;
 use Hyperf\Utils\Str;
-use Hyperf\Context\Context;
 use Hyperf\WebSocketServer\Context as WsContext;
 use Psr\Http\Message\ServerRequestInterface;
 
@@ -276,18 +276,19 @@ class Ding implements CoreContract
     protected function _sendDingTalkRobotMessage(array $msg)
     {
         // 钉钉限制每个机器人每分钟最多推送频率20条记录
-        $requestCountPerminKey = env('APP_NAME', 'ding') . ':' . $this->name . ':request_count_permin';
-        $requestCountPermin = $this->redis->get($requestCountPerminKey);
+        $requestCountPerminKey = $this->name . ':request_count_permin';
 
-        // 每分钟限制为18条推送
-        if (false == $requestCountPermin) {
-            $this->redis->incr($requestCountPerminKey);
-            $this->redis->expire($requestCountPerminKey, 60);
-        } elseif ($requestCountPermin > 18) {
-            var_dump('requests are too frequent');
-            return;
+        if ($this->redis->exist($requestCountPerminKey)) {
+            $requestCountPermin = $this->redis->get($requestCountPerminKey);
+            if ($requestCountPermin > 18) {
+                // 每分钟限制为18条推送
+                var_dump('requests are too frequent');
+                return;
+            } else {
+                $this->redis->incr($requestCountPerminKey);
+            }
         } else {
-            $this->redis->incr($requestCountPerminKey);
+            $this->redis->set($requestCountPerminKey, 1, 60);
         }
 
         $timestamp = (string)(time() * 1000);
