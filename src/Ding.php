@@ -278,7 +278,7 @@ class Ding implements CoreContract
         // 钉钉限制每个机器人每分钟最多推送频率20条记录
         $requestCountPerminKey = $this->name . ':request_count_permin';
 
-        if ($this->redis->exist($requestCountPerminKey)) {
+        if ($this->redis->exists($requestCountPerminKey)) {
             $requestCountPermin = $this->redis->get($requestCountPerminKey);
             if ($requestCountPermin > 18) {
                 // 每分钟限制为18条推送
