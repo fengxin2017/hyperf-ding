@@ -275,22 +275,6 @@ class Ding implements CoreContract
      */
     protected function _sendDingTalkRobotMessage(array $msg)
     {
-        // 钉钉限制每个机器人每分钟最多推送频率20条记录
-        $requestCountPerminKey = $this->name . ':request_count_permin';
-
-        if ($this->redis->exists($requestCountPerminKey)) {
-            $requestCountPermin = $this->redis->get($requestCountPerminKey);
-            if ($requestCountPermin > 18) {
-                // 每分钟限制为18条推送
-                var_dump('requests are too frequent');
-                return;
-            } else {
-                $this->redis->incr($requestCountPerminKey);
-            }
-        } else {
-            $this->redis->set($requestCountPerminKey, 1, 60);
-        }
-
         $timestamp = (string)(time() * 1000);
         $secret = $this->getSecret();
         $token = $this->getToken();
@@ -299,6 +283,7 @@ class Ding implements CoreContract
         $result = json_decode($response->getBody(), true);
         if (!isset($result['errcode']) || $result['errcode']) {
             var_dump('message send fail');
+            var_dump($result);
         }
     }
 
