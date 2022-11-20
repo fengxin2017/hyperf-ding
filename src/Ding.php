@@ -275,15 +275,24 @@ class Ding implements CoreContract
      */
     protected function _sendDingTalkRobotMessage(array $msg)
     {
-        $timestamp = (string)(time() * 1000);
-        $secret = $this->getSecret();
-        $token = $this->getToken();
-        $sign = urlencode(base64_encode(hash_hmac('sha256', $timestamp . "\n" . $secret, $secret, true)));
-        $response = $this->client->post(sprintf($this->apiUrl, $token, $timestamp, $sign), ['json' => $msg]);
-        $result = json_decode($response->getBody(), true);
-        if (!isset($result['errcode']) || $result['errcode']) {
-            var_dump('message send fail');
-            var_dump($result);
+        // 钉钉限制每个机器人每分钟最多推送频率20条记录
+        $requestCountPerminKey = $this->name . ':request_count_permin';
+        $this->redis->set($requestCountPerminKey, 20, ['nx', 'ex' => 60]);
+        
+        if ((int)$this->redis->get($requestCountPerminKey) > 0) {
+            $timestamp = (string)(time() * 1000);
+            $secret = $this->getSecret();
+            $token = $this->getToken();
+            $sign = urlencode(base64_encode(hash_hmac('sha256', $timestamp . "\n" . $secret, $secret, true)));
+            $response = $this->client->post(sprintf($this->apiUrl, $token, $timestamp, $sign), ['json' => $msg]);
+            $result = json_decode($response->getBody(), true);
+            if (!isset($result['errcode']) || $result['errcode']) {
+                var_dump('消息发送失败');
+                var_dump($result);
+            }
+            $this->redis->decr($requestCountPerminKey);
+        } else {
+            var_dump('请求繁忙');
         }
     }
 
@@ -380,13 +389,15 @@ class Ding implements CoreContract
             foreach ($headers as $key => $val) {
                 unset($headers[$key]);
                 $key = strtolower($key);
-                $headerPrefix = config('ding.header_prefix');
-                if ($headerPrefix && strpos($key, $headerPrefix) !== false) {
-                    $headers[$key] = is_array($val) ? join('; ', $val) : $val;
+                $headerPrefixs = array_unique(config('ding.header_prefix') ?: []);
+                foreach ($headerPrefixs as $headerPrefix) {
+                    if (strpos($key, $headerPrefix) !== false) {
+                        $headers[$key] = is_array($val) ? join('; ', $val) : $val;
+                    }
                 }
             }
             //去除不需要的key
-            foreach (config('ding.ignore_headers', []) as $key) {
+            foreach (config('ding.ignore_headers') ?: [] as $key) {
                 $key = strtolower($key);
                 unset($headers[$key]);
             }

@@ -8,8 +8,10 @@ return [
     'ignore_header' => [
         'client-key', 'client-timestamp', 'client-nonce', 'client-sign', 'client-accesskey'
     ],
-    // 头信息前缀
-    'header_prefix' => '',
+    // 指定记录头信息前缀
+    'header_prefix' => [
+
+    ],
 
     'bots' => [
         // 生产环境
