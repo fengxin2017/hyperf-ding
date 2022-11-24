@@ -276,23 +276,15 @@ class Ding implements CoreContract
     protected function _sendDingTalkRobotMessage(array $msg)
     {
         // 钉钉限制每个机器人每分钟最多推送频率20条记录
-        $requestCountPerminKey = $this->name . ':request_count_permin';
-        $this->redis->set($requestCountPerminKey, 20, ['nx', 'ex' => 60]);
-        
-        if ((int)$this->redis->get($requestCountPerminKey) > 0) {
-            $timestamp = (string)(time() * 1000);
-            $secret = $this->getSecret();
-            $token = $this->getToken();
-            $sign = urlencode(base64_encode(hash_hmac('sha256', $timestamp . "\n" . $secret, $secret, true)));
-            $response = $this->client->post(sprintf($this->apiUrl, $token, $timestamp, $sign), ['json' => $msg]);
-            $result = json_decode($response->getBody(), true);
-            if (!isset($result['errcode']) || $result['errcode']) {
-                var_dump('消息发送失败');
-                var_dump($result);
-            }
-            $this->redis->decr($requestCountPerminKey);
-        } else {
-            var_dump('请求繁忙');
+        $timestamp = (string)(time() * 1000);
+        $secret = $this->getSecret();
+        $token = $this->getToken();
+        $sign = urlencode(base64_encode(hash_hmac('sha256', $timestamp . "\n" . $secret, $secret, true)));
+        $response = $this->client->post(sprintf($this->apiUrl, $token, $timestamp, $sign), ['json' => $msg]);
+        $result = json_decode($response->getBody(), true);
+        if (!isset($result['errcode']) || $result['errcode']) {
+            var_dump('消息发送失败');
+            var_dump($result);
         }
     }
 
