@@ -464,9 +464,11 @@ class Ding implements CoreContract
             foreach ($headers as $key => $val) {
                 unset($headers[$key]);
                 $key = strtolower($key);
-                $headerPrefix = config('ding.header_prefix');
-                if ($headerPrefix && strpos($key, $headerPrefix) !== false) {
-                    $headers[$key] = is_array($val) ? join('; ', $val) : $val;
+                $headerPrefixs = array_unique(config('ding.header_prefix') ?: []);
+                foreach ($headerPrefixs as $headerPrefix) {
+                    if (strpos($key, $headerPrefix) !== false) {
+                        $headers[$key] = is_array($val) ? join('; ', $val) : $val;
+                    }
                 }
             }
             //去除不需要的key
